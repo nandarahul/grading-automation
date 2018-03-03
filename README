@@ -1,0 +1,1 @@
+If the patool fails to unpack a file, install the necessary executable such as unrar, unzip, etc. using brew or apt-get
