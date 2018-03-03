@@ -8,9 +8,14 @@ import pyunpack
 import os
 import re
 import shutil
-ASSIGNMENT_DIRECTORY_PATH = "/Users/rahul/Documents/CS182/hw5/grading/"
+import configparser
+
+config = configparser.ConfigParser()
+config.read('config.ini')
+ASSIGNMENT_DIRECTORY_PATH = config['DEFAULT']['assignment_directory_path']
+SUBMISSION_FILE_NAME = config['DEFAULT']['submission_file_name']
+
 BB_FILENAME_FORMAT = '[a-zA-Z0-9\s]+_(?P<userid>[a-zA-Z0-9]+)_(\S)*'
-SUBMISSION_FILE_NAME = "Treasure.java"
 
 regex_pattern_object = re.compile(BB_FILENAME_FORMAT)
 """
@@ -119,6 +124,6 @@ if __name__ == "__main__":
     fix_faulty_user_directories(faulty_user_dir_list)
     faulty_user_dir_list = check_faulty_user_directories()
     print("Faulty user directories", faulty_user_dir_list)
-    
+
 
 
