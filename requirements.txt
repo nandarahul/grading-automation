@@ -1,0 +1,6 @@
+EasyProcess==0.2.3
+patool==1.12
+python-dateutil==2.6.1
+pytz==2018.3
+pyunpack==0.1.2
+six==1.11.0
