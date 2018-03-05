@@ -94,7 +94,6 @@ def create_user_directories():
         file_path = os.path.join(ASSIGNMENT_DIRECTORY_PATH, filename)
         if os.path.isdir(file_path) or filename.endswith('.txt'):
             continue
-
         user_id = extract_userid_from_filename(filename)
         if user_id is None:
             continue
@@ -163,6 +162,18 @@ def run_grader(delete_exisiting_result=False):
     print("compilation failed users count: %d \n " % len(compilation_failed_users), compilation_failed_users)
     print("Unknown exception users count: %d \n " % len(unknown_exception_users), unknown_exception_users)
 
+
+def test_script_success():
+    count = 0
+    for filename in os.listdir(ASSIGNMENT_DIRECTORY_PATH):
+        file_path = os.path.join(ASSIGNMENT_DIRECTORY_PATH, filename)
+        if not os.path.isdir(file_path):
+            continue
+        if RESULT_FILE_NAME in os.listdir(file_path):
+            count += 1
+    print("Script successful for %d users" % count)
+
+
 if __name__ == "__main__":
     print("total user submissions: %d" % find_unique_user_count())
     #create_user_directories()
@@ -172,8 +183,6 @@ if __name__ == "__main__":
     #fix_faulty_user_directories(faulty_user_dir_list)
     #faulty_user_dir_list = check_faulty_user_directories()
     #print("Faulty user directories", faulty_user_dir_list)
-
     copy_grading_files_to_user_directories()
     run_grader()
-
-
+    test_script_success()
