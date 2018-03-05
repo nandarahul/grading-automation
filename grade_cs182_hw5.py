@@ -14,7 +14,10 @@ config = configparser.ConfigParser()
 config.read('config.ini')
 ASSIGNMENT_DIRECTORY_PATH = config['DEFAULT']['assignment_directory_path']
 SUBMISSION_FILE_NAME = config['DEFAULT']['submission_file_name']
-
+AUX_FILES_PATH = [gf.strip() for gf in config['DEFAULT']['aux_files'].split(',')]
+GRADER_FILE_PATH = config['DEFAULT']['grader_file'].strip()
+GRADER_FILENAME = os.path.basename(GRADER_FILE_PATH)
+RESULT_FILE_NAME = config['DEFAULT']['result_file_name'].strip()
 BB_FILENAME_FORMAT = '[a-zA-Z0-9\s]+_(?P<userid>[a-zA-Z0-9]+)_(\S)*'
 
 regex_pattern_object = re.compile(BB_FILENAME_FORMAT)
@@ -100,14 +103,14 @@ def create_user_directories():
             os.makedirs(user_dir_path)
         if len(os.listdir(user_dir_path)) > 0:
             continue
-        if filename.endswith(SUBMISSION_FILE_NAME):
-            shutil.copy(file_path, os.path.join(user_dir_path, SUBMISSION_FILE_NAME))
-            # print("Copied java file for user: %s" % user_id)
-            continue
         # Try extracting files to the corresponding user directory
         try:
             pyunpack.Archive(file_path).extractall(user_dir_path)
         except Exception as e:
+            if filename.endswith(SUBMISSION_FILE_NAME):
+                shutil.copy(file_path, os.path.join(user_dir_path, SUBMISSION_FILE_NAME))
+                # print("Copied java file for user: %s" % user_id)
+                continue
             print(e)
             count_failed += 1
             unpack_failed_users.append(user_id)
@@ -115,15 +118,62 @@ def create_user_directories():
     print("Unpacking failed for users: ", unpack_failed_users)
 
 
+def copy_grading_files_to_user_directories():
+    count = 0
+    for filename in os.listdir(ASSIGNMENT_DIRECTORY_PATH):
+        file_path = os.path.join(ASSIGNMENT_DIRECTORY_PATH, filename)
+        if not os.path.isdir(file_path):
+            continue
+        for aux_file in AUX_FILES_PATH:
+            shutil.copy(aux_file, file_path)
+        shutil.copy(GRADER_FILE_PATH, file_path)
+        count += 1
+    print("Copied grading files to %d user dirs" % count)
+
+
+def run_grader(delete_exisiting_result=False):
+    timeout_users, compilation_failed_users, unknown_exception_users = [], [], []
+    for filename in os.listdir(ASSIGNMENT_DIRECTORY_PATH):
+        file_path = os.path.join(ASSIGNMENT_DIRECTORY_PATH, filename)
+        if not os.path.isdir(file_path):
+            continue
+        print("** User: %s **" % filename)
+        if RESULT_FILE_NAME in os.listdir(file_path):
+            print("result file already exists.")
+            if delete_exisiting_result:
+                print("Deleting..")
+                os.remove(os.path.join(file_path, RESULT_FILE_NAME))
+            else:
+                print("Skipping..")
+                continue
+        try:
+            subprocess.check_output(['javac', '-classpath', file_path, os.path.join(file_path, GRADER_FILENAME)], timeout=2)
+            subprocess.check_output(['java', '-classpath', file_path, GRADER_FILENAME.split('.')[0], file_path], timeout=10)
+        except subprocess.CalledProcessError as e:
+            print("\n\n** User: %s **" % filename)
+            print(e)
+            compilation_failed_users.append(filename)
+        except subprocess.TimeoutExpired as e:
+            print(e)
+            timeout_users.append(filename)
+        except Exception as e:
+            print(e)
+            unknown_exception_users.append(filename)
+    print("Timeout users count: %d \n " % len(timeout_users), timeout_users)
+    print("compilation failed users count: %d \n " % len(compilation_failed_users), compilation_failed_users)
+    print("Unknown exception users count: %d \n " % len(unknown_exception_users), unknown_exception_users)
+
 if __name__ == "__main__":
     print("total user submissions: %d" % find_unique_user_count())
-    create_user_directories()
-    faulty_user_dir_list = check_faulty_user_directories()
-    print("Faulty user directories", faulty_user_dir_list)
-    print("\n\n** Will Try Fixing **")
-    fix_faulty_user_directories(faulty_user_dir_list)
-    faulty_user_dir_list = check_faulty_user_directories()
-    print("Faulty user directories", faulty_user_dir_list)
+    #create_user_directories()
+    #faulty_user_dir_list = check_faulty_user_directories()
+    #print("Faulty user directories", faulty_user_dir_list)
+    #print("\n\n** Will Try Fixing **")
+    #fix_faulty_user_directories(faulty_user_dir_list)
+    #faulty_user_dir_list = check_faulty_user_directories()
+    #print("Faulty user directories", faulty_user_dir_list)
 
+    copy_grading_files_to_user_directories()
+    run_grader()
 
 
