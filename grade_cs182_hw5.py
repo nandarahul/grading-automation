@@ -21,9 +21,14 @@ RESULT_FILE_NAME = config['DEFAULT']['result_file_name'].strip()
 BB_FILENAME_FORMAT = '[a-zA-Z0-9\s]+_(?P<userid>[a-zA-Z0-9]+)_(\S)*'
 
 regex_pattern_object = re.compile(BB_FILENAME_FORMAT)
-"""
-- handle other compressed formats   
-"""
+DID_NOT_FOLLOW_GUIDELINES_FILE = config['DEFAULT']['guidelines_file'].strip()
+
+
+def append_to_file(filename, text):
+    fh = open(filename, mode='a')
+    fh.write(text + '\n')
+    fh.close()
+
 
 def extract_userid_from_filename(filename):
     match_obj = regex_pattern_object.match(filename)
@@ -61,11 +66,13 @@ def check_faulty_user_directories():
 
 
 def copy_target_to_root_user_directory(root_user_dir_path):
+    user_followed_guidelines = True
     if not os.path.exists(root_user_dir_path):
         raise Exception("Invalid Directory path: %s" % root_user_dir_path)
     if not os.path.isdir(root_user_dir_path):
         raise Exception("Not a directory: %s" % root_user_dir_path)
     current_dir = root_user_dir_path
+    count_total_dirs = 1
     dfs_stack = [root_user_dir_path]
     while len(dfs_stack) > 0:
         current_dir = dfs_stack.pop()
@@ -73,13 +80,20 @@ def copy_target_to_root_user_directory(root_user_dir_path):
             file_path = os.path.join(current_dir, filename)
             if os.path.isdir(file_path):
                 dfs_stack.append(file_path)
+                count_total_dirs += 1
                 continue
             if current_dir == root_user_dir_path:
                 continue
             # Move all java files to root_user_dir_path
             if file_path.endswith('.java'):
+                if not file_path.endswith(SUBMISSION_FILE_NAME):
+                    user_followed_guidelines = False
                 shutil.copy(file_path, root_user_dir_path)
                 print("Copied file %s to root_user_dir: %s" %(file_path, root_user_dir_path))
+    if count_total_dirs > 2:
+        user_followed_guidelines = False
+    if not user_followed_guidelines:
+        append_to_file(DID_NOT_FOLLOW_GUIDELINES_FILE, os.path.basename(os.path.normpath(root_user_dir_path)))
 
 
 def fix_faulty_user_directories(faulty_user_dir_list):
@@ -108,6 +122,7 @@ def create_user_directories():
         except Exception as e:
             if filename.endswith(SUBMISSION_FILE_NAME):
                 shutil.copy(file_path, os.path.join(user_dir_path, SUBMISSION_FILE_NAME))
+                append_to_file(DID_NOT_FOLLOW_GUIDELINES_FILE, user_id)
                 # print("Copied java file for user: %s" % user_id)
                 continue
             print(e)
@@ -116,6 +131,18 @@ def create_user_directories():
     print("Total failed to unpack count: %d" % count_failed)
     print("Unpacking failed for users: ", unpack_failed_users)
 
+
+def move_txt_files_to_user_directories():
+    count = 0
+    for filename in os.listdir(ASSIGNMENT_DIRECTORY_PATH):
+        file_path = os.path.join(ASSIGNMENT_DIRECTORY_PATH, filename)
+        if os.path.isdir(file_path):
+            continue
+        if filename.endswith('.txt'):
+            user_id = extract_userid_from_filename(filename)
+            shutil.move(file_path, os.path.join(ASSIGNMENT_DIRECTORY_PATH, user_id))
+            count += 1
+    print("Moved %d txt files to corresponding user directories" % count)
 
 def copy_grading_files_to_user_directories():
     count = 0
@@ -131,6 +158,7 @@ def copy_grading_files_to_user_directories():
 
 
 def run_grader(delete_exisiting_result=False):
+    print("\n\nGrader Running...")
     timeout_users, compilation_failed_users, unknown_exception_users = [], [], []
     for filename in os.listdir(ASSIGNMENT_DIRECTORY_PATH):
         file_path = os.path.join(ASSIGNMENT_DIRECTORY_PATH, filename)
@@ -146,8 +174,8 @@ def run_grader(delete_exisiting_result=False):
                 print("Skipping..")
                 continue
         try:
-            subprocess.check_output(['javac', '-classpath', file_path, os.path.join(file_path, GRADER_FILENAME)], timeout=2)
-            subprocess.check_output(['java', '-classpath', file_path, GRADER_FILENAME.split('.')[0], file_path], timeout=10)
+            subprocess.check_output(['javac', '-classpath', file_path, os.path.join(file_path, GRADER_FILENAME)], timeout=5)
+            subprocess.check_output(['java', '-classpath', file_path, GRADER_FILENAME.split('.')[0], file_path], timeout=15)
         except subprocess.CalledProcessError as e:
             print("\n\n** User: %s **" % filename)
             print(e)
@@ -164,25 +192,32 @@ def run_grader(delete_exisiting_result=False):
 
 
 def test_script_success():
-    count = 0
+    count, failed_script_users = 0, []
     for filename in os.listdir(ASSIGNMENT_DIRECTORY_PATH):
         file_path = os.path.join(ASSIGNMENT_DIRECTORY_PATH, filename)
         if not os.path.isdir(file_path):
             continue
         if RESULT_FILE_NAME in os.listdir(file_path):
             count += 1
+        else:
+            failed_script_users.append(filename)
     print("Script successful for %d users" % count)
-
+    with open("compilation_failed_users.txt", 'w') as fh:
+        for fsu in failed_script_users:
+            fh.write(fsu + '\n')
+    print(failed_script_users)
 
 if __name__ == "__main__":
+    append_to_file(DID_NOT_FOLLOW_GUIDELINES_FILE, "*** New Run ***")
     print("total user submissions: %d" % find_unique_user_count())
     #create_user_directories()
     #faulty_user_dir_list = check_faulty_user_directories()
     #print("Faulty user directories", faulty_user_dir_list)
     #print("\n\n** Will Try Fixing **")
     #fix_faulty_user_directories(faulty_user_dir_list)
-    #faulty_user_dir_list = check_faulty_user_directories()
-    #print("Faulty user directories", faulty_user_dir_list)
-    copy_grading_files_to_user_directories()
+    faulty_user_dir_list = check_faulty_user_directories()
+    print("Faulty user directories", faulty_user_dir_list)
+    #copy_grading_files_to_user_directories()
     run_grader()
+    #move_txt_files_to_user_directories()
     test_script_success()
