@@ -1,1 +1,12 @@
+Script to automate grading of all hw5 submissions for CS182 downloaded from Blackboard.
+The script 
+- unpacks submissions (supporting all major compression formats - zip, rar, etc.)
+- creates a directory for every student and copies Blackboard submission info file corresponding to each student dir
+- finds students who didn't follow the submission guidelines
+- fixes faulty student directories
+- copies grader and other supporting files to all user directories
+- runs grader on all student submissions and generates a report for every student. 
+- reports stuents whose submissions fail to compile.
+
+Note:
 If the patool fails to unpack a file, install the necessary executable such as unrar, unzip, etc. using brew or apt-get
